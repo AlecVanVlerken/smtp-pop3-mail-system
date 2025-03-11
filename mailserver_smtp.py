@@ -2,22 +2,26 @@ import socket
 import os
 import datetime
 
+
 MAILBOX_DIR = "./users"
 
 
-def handle_client(client_socket, mailbox_dir):
+# Maak een socket aan
+def handle_client(client_socket, mailbox_dir): #moeten we niet checken dat de client socket ook niet met TCP werkt?
     try:
         domain_name = "kuleuven.be"  # Hardcode for now, maybe use dynamically fetched domain name later 
-        client_socket.send(f"220 {domain_name} Service Ready\r\n".encode())
+        client_socket.send(f"220 {domain_name} Service Ready\r\n".encode()) 
 
+        # Bind de socket aan alle IP-adressen van de computer en de opgegeven poort
+        # server_socket.bind(("0.0.0.0", port))  ??? in start_mail_server
         mail_data = ""
         sender, recipient = None, None
         
         while True:
-            data = client_socket.recv(1024).decode()
-            if not data:
+            data = client_socket.recv(1024).decode() #waarom max 1024 bytes ?? ongv 8 zinnen
+            if not data: 
                 break
-            
+            #moeten we niet checken dat eerst helo gestuur is, voor mail from...
             # HELO
             if data.startswith("HELO"):
                 client_socket.send(f"250 OK Hello {domain_name}\r\n".encode())
@@ -29,15 +33,20 @@ def handle_client(client_socket, mailbox_dir):
             
             # RCPT
             elif data.startswith("RCPT TO:"):
-                recipient = data.split(":")[1].strip().split('@')[0]
+                recipient = data.split(":")[1].strip()
+                #recipient = data.split(":")[1].strip()
                 recipient_domain = data.split(":")[1].strip().split('@')[1]
 
                 # Check if the recipient exists
+                print(f"DEBUG: mailbox_dir = {mailbox_dir}")
+                print(f"DEBUG: recipient = {recipient}")
+                print(f"DEBUG: Full path = {os.path.join(mailbox_dir, recipient)}")
+
                 if os.path.exists(os.path.join(mailbox_dir, recipient)):
                     client_socket.send(f"250 OK Recipient {recipient}\r\n".encode())
                 else:
                     client_socket.send(b"550 No such user\r\n")
-                    break
+                    continue
             
             # DATA
             elif data.startswith("DATA"):
@@ -53,7 +62,7 @@ def handle_client(client_socket, mailbox_dir):
                 mail_data = f"\n{mail_data}\nReceived: {timestamp}\n."
                 
                 # Save the message to the recipient's mailbox
-                mailbox_path = os.path.join(mailbox_dir, recipient, "my_mailbox")
+                mailbox_path = os.path.join(mailbox_dir, recipient, "my_mailbox.txt") #vroeger stond my_mailbox
                 with open(mailbox_path, "a") as mailbox:
                     mailbox.write(mail_data)
                 
@@ -68,6 +77,8 @@ def handle_client(client_socket, mailbox_dir):
     finally:
         client_socket.send(f"221 {domain_name} Service closing transmission channel\r\n".encode())
         client_socket.close()
+
+#print(f"SMTP-server draait op poort {my_port} en wacht op verbindingen...")
 
 
 def start_mail_server(port, mailbox_dir=MAILBOX_DIR):
